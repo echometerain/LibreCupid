@@ -88,7 +88,14 @@ function deleteMessage(messageId) {
 function displayMessage(message) {
   const messagesDiv = document.getElementById('messages');
   const msgElement = document.createElement('div');
-  msgElement.textContent = message; // For simplicity, directly showing the message string
+  const deleteButton = document.createElement('button');
+
+  // Assuming message is an object with id and content properties
+  msgElement.textContent = message.content; // Display the message content
+  deleteButton.textContent = 'Delete';
+  deleteButton.onclick = function() { deleteMessage(message.id); }; // Attach delete function
+
+  msgElement.appendChild(deleteButton);
   messagesDiv.appendChild(msgElement);
 }
 
