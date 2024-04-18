@@ -5,7 +5,7 @@ var firebaseConfig = {
   projectId: "YOUR_PROJECT_ID",
   storageBucket: "YOUR_PROJECT_ID.appspot.com",
   messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  appId: "YOUR_APP_ID" //Replace YOUR_API_KEY, YOUR_PROJECT_ID, YOUR_SENDER_ID, and YOUR_APP_ID with the actual Firebase project configuration
 };
 firebase.initializeApp(firebaseConfig);
 
