@@ -1,28 +1,42 @@
-const ws = new WebSocket('ws://localhost:8080');
-let currentUser = 'User1'; // This should be dynamically set based on the logged-in user
+// Assuming Firebase is already initialized and user is authenticated
 
-ws.onopen = (event) => {
+// Initialize WebSocket connection
+const ws = new WebSocket('ws://localhost:8080'); // Use your server's address
+
+ws.onopen = () => {
   console.log('Connected to the WebSocket server');
-  // Send a login message or similar if needed
+  // You can now send messages
+};
+
+ws.onerror = (error) => {
+  console.error('WebSocket error:', error);
 };
 
 ws.onmessage = (event) => {
-  const message = JSON.parse(event.data);
-  displayMessage(message);
+  // Handle incoming messages
+  console.log('Message from server:', event.data);
+  displayMessage(event.data);
 };
 
-function sendMessage(receiver, content) {
-  const message = {
-    type: 'message',
-    sender: currentUser,
-    receiver: receiver,
-    content: content,
-  };
-  ws.send(JSON.stringify(message));
-  displayMessage(message, true);
+function sendMessage() {
+  const messageInput = document.getElementById('messageInput');
+  const message = messageInput.value;
+  if (message) {
+    // Construct a message object or use plain text
+    const messageObj = {
+      type: 'message', // You can define different types of messages e.g., 'message', 'typing'
+      content: message,
+      sender: firebase.auth().currentUser.uid, // Example: Use user ID from Firebase Authentication
+      timestamp: new Date().toISOString()
+    };
+    ws.send(JSON.stringify(messageObj)); // Send the message as a string
+    messageInput.value = ''; // Clear input field after sending
+  }
 }
 
-function displayMessage(message, isOwnMessage = false) {
-  // Update the UI to display the message
-  // This function needs to be implemented based on your UI design
+function displayMessage(message) {
+  const messagesDiv = document.getElementById('messages');
+  const msgElement = document.createElement('div');
+  msgElement.textContent = message; // For simplicity, directly showing the message string
+  messagesDiv.appendChild(msgElement);
 }
