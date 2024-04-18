@@ -37,7 +37,7 @@ function auto_login() {
 }
 
 // must be called after first login!!!
-async function register(
+export async function register(
   photoPath: string,
   firstName: string,
   lastName: string,
@@ -60,7 +60,7 @@ async function register(
 }
 
 // logs user in (returns true if registration is needed)
-async function loginIfRegister(): Promise<boolean> {
+export async function loginIfRegister(): Promise<boolean> {
   await fa
     .signInWithPopup(auth, new fa.GoogleAuthProvider())
     .then((result) => {
@@ -83,12 +83,12 @@ async function loginIfRegister(): Promise<boolean> {
 }
 
 // check if logged in
-function isLoggedIn(): boolean {
+export function isLoggedIn(): boolean {
   return user != undefined;
 }
 
 // logout
-async function logout() {
+export async function logout() {
   await fa.signOut(auth);
   token = "";
   localStorage.removeItem(token);
@@ -108,7 +108,7 @@ function gaussianRandom(mean = 0, stdev = 1) {
 // get top 10 matches with naive bayes
 // returns an array of [userID, matchAmount]
 // you can then use that id in getUserInfo and getData
-async function top_matches() {
+export async function top_matches() {
   // get main user info
   let top: (string | number)[][] = [];
   let info = await getUserInfo(userID as string);
@@ -127,10 +127,11 @@ async function top_matches() {
     const factor = 2; // factor to keep values from exploding
     let acceptGivenAgree = acceptProb * factor; // P(accept | all questions)
     for (let e in Object.keys(data)) {
+      let otherData = doc.data() as object;
       // ignore if the other user didn't answer question
-      if (!Object.keys(doc.data).includes(e)) continue;
+      if (!Object.keys(otherData).includes(e)) continue;
       // naive bayes
-      let agree = data[e]["isYes"] == doc.data[e]["isYes"];
+      let agree = data[e]["isYes"] == otherData[e]["isYes"];
       let agreeGivenAccept = data[e]["acceptedAgree"] / info["totalAccepted"];
       let sd = Math.sqrt(
         // standard deviation
@@ -155,12 +156,15 @@ async function top_matches() {
 }
 
 // generate question
-async function genQuestion() {
+export async function genQuestion() {
   var count: number = (
     await fs.getCountFromServer(fs.collection(db, "questions"))
   ).data().count;
   let num = Math.floor(Math.random() * count);
-  return await fs.getDoc(fs.doc(db, "questions", num.toString()));
+  let questionInfo = await (
+    await fs.getDoc(fs.doc(db, "questions", num.toString()))
+  ).data();
+  return [num];
 }
 
 // update data after user answers question
@@ -184,8 +188,12 @@ async function matchUpdate(otherUser: string, didAccept: boolean) {
   newObj["totalSwipes"] = info["totalSwipes"] + 1;
   fs.updateDoc(fs.doc(db, "users", userID as string), newObj);
   if (didAccept) {
-    let us = (await fs.getDoc(fs.doc(db, "data", userID as string))).data;
-    let other = (await fs.getDoc(fs.doc(db, "data", otherUser as string))).data;
+    let us = (
+      await fs.getDoc(fs.doc(db, "data", userID as string))
+    ).data() as object;
+    let other = (
+      await fs.getDoc(fs.doc(db, "data", otherUser as string))
+    ).data() as object;
     for (let e in Object.keys(other)) {
       if (other[e]["isYes"] == us[e]["isYes"]) us[e]["acceptedAgree"]++;
     }
@@ -196,13 +204,13 @@ async function matchUpdate(otherUser: string, didAccept: boolean) {
 // get json document from data collection given id
 async function getData(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "data", ID as string));
-  return doc.data;
+  return doc.data() as object;
 }
 
 // get json document from info collection given id
 async function getUserInfo(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "users", ID as string));
-  return doc.data;
+  return doc.data() as object;
 }
 
 // set user info
