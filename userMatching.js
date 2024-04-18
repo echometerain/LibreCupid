@@ -8,7 +8,7 @@ const users = [
 ];
 
 // Matching algorithm to find the best match based on shared interests
-function findBestMatch(currentUser, users) {
+function findBestMatch(currentUser, users) { //change this algorithm to the preference liking
   let bestMatch = null;
   let highestScore = 0;
 
