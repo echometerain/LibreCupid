@@ -1,4 +1,5 @@
 import { initializeApp } from "firebase/app";
+import * as st from "firebase/storage";
 import * as fs from "firebase/firestore";
 import * as fa from "firebase/auth";
 
@@ -16,30 +17,60 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = fa.getAuth(app);
 const db = fs.getFirestore(app);
+const store = st.getStorage(app);
 var token: string | undefined = undefined;
 var user: fa.User | undefined = undefined;
 var userID: string | undefined = undefined;
 
 function auto_login() {
-  if (token == "") return;
+  if (token == undefined) return;
   fa.signInWithCustomToken(auth, token as string).then((userCredential) => {
     user = userCredential.user;
   });
 }
 
-function firebase_auth() {
-  if (token != undefined) return;
-  fa.signInWithPopup(auth, new fa.GoogleAuthProvider())
+// must be called after first login!!!
+async function register(
+  photoPath: string,
+  firstName: string,
+  lastName: string,
+  username: string
+) {
+  let obj = {};
+  if (userID == undefined) return;
+  obj[userID]["firstName"] = firstName;
+  obj[userID]["lastName"] = lastName;
+  obj[userID]["username"] = username;
+
+  let imageRef = st.ref(store, userID);
+  let imageUpload = await st.uploadBytesResumable(
+    imageRef,
+    await (await fetch(photoPath)).blob()
+  );
+  st.getDownloadURL(imageRef).then((url) => {
+    obj[userID as string]["photoUrl"] = url;
+  });
+}
+
+async function loginIfRegister(): Promise<boolean> {
+  await fa
+    .signInWithPopup(auth, new fa.GoogleAuthProvider())
     .then((result) => {
       const credential = fa.GoogleAuthProvider.credentialFromResult(result);
       if (credential == null || credential == undefined) return;
       token = credential.accessToken;
       user = result.user;
+      userID = user.uid;
     })
     .catch((error) => {
-      const errorCode = error.code;
-      const errorMessage = error.message;
+      console.log(error);
+      return;
     });
+  // register if user doesn't exist
+  if (!(await fs.getDoc(fs.doc(db, "users", userID as string))).exists()) {
+    return true;
+  }
+  return false;
 }
 
 function isLoggedIn(): boolean {
@@ -65,42 +96,49 @@ function gaussianRandom(mean = 0, stdev = 1) {
 async function top_matches() {
   // get main user info
   let top: (string | number)[][] = [];
-  let info = await getInfo(userID as string);
+  let info = await getUserInfo(userID as string);
   let contacts = info["contacts"];
   let acceptProb = info["totalAccepted"] / info["totalSwipes"];
   let data = await getData(userID as string);
 
   // get all users
   let compat: (string | number)[][] = [];
-  let q = fs.query(fs.collection(db, "data"));
+  let q = fs.query(fs.collection(db, "data")); // get everyone
+  // for every user
   (await fs.getDocs(q)).forEach((doc) => {
-    if (contacts.includes(doc.id)) return;
-    const factor = 2;
-    let acceptGivenAgree = acceptProb * factor;
+    if (contacts.includes(doc.id)) return; // ignore if already in contacts
+    const factor = 2; // factor to keep values from exploding
+    let acceptGivenAgree = acceptProb * factor; // P(accept | all questions)
     for (let e in Object.keys(data)) {
-      let agree = data[e]["isYes"] == doc[e]["isYes"];
+      // ignore if the other user didn't answer question
+      if (!Object.keys(doc.data).includes(e)) continue;
+      // naive bayes
+      let agree = data[e]["isYes"] == doc.data[e]["isYes"];
       let agreeGivenAccept = data[e]["acceptedAgree"] / info["totalAccepted"];
       let sd = Math.sqrt(
+        // standard deviation
         (agreeGivenAccept * (1 - agreeGivenAccept)) / info["totalAccepted"]
       );
-      let prob = gaussianRandom(agreeGivenAccept, sd);
+      let prob = gaussianRandom(agreeGivenAccept, sd); // P(question given accept)
       if (agree) {
         acceptGivenAgree = prob * factor;
       } else {
-        acceptGivenAgree = (1 - 1 - prob) * factor;
+        acceptGivenAgree = (1 - prob) * factor;
       }
     }
+    // user id, match proportion
     compat.push([doc.id, acceptGivenAgree]);
-    compat.sort((a, b) => {
-      // sort descending
-      return (b[1] as number) - (a[1] as number);
-    });
-    top = compat.slice(0, Math.min(10, compat.length));
   });
-
+  compat.sort((a, b) => {
+    // sort descending
+    return (b[1] as number) - (a[1] as number);
+  });
+  top = compat.slice(0, Math.min(20, compat.length));
   return top;
 }
-async function gen_question() {
+
+// generate question
+async function genQuestion() {
   var count: number = (
     await fs.getCountFromServer(fs.collection(db, "questions"))
   ).data().count;
@@ -108,7 +146,8 @@ async function gen_question() {
   return await fs.getDoc(fs.doc(db, "questions", num.toString()));
 }
 
-async function quiz_update(question: number, value: boolean) {
+// update user data on question
+async function quizUpdate(question: number, value: boolean) {
   let docRef = fs.doc(db, "data", userID as string);
   let doc = await fs.getDoc(docRef);
   let obj = {};
@@ -121,11 +160,28 @@ async function quiz_update(question: number, value: boolean) {
   }
 }
 
+// update when swiping;
+async function matchUpdate(otherUser: String, didAccept: boolean) {
+  let info = getUserInfo(userID as string);
+  let newObj = {};
+  newObj["totalSwipes"] = info["totalSwipes"] + 1;
+  fs.updateDoc(fs.doc(db, "users", userID as string), newObj);
+  if (didAccept) {
+    let us = (await fs.getDoc(fs.doc(db, "data", userID as string))).data;
+    let other = (await fs.getDoc(fs.doc(db, "data", otherUser as string))).data;
+    for (let e in Object.keys(other)) {
+      if (other[e]["isYes"] == us[e]["isYes"]) us[e]["acceptedAgree"]++;
+    }
+    fs.setDoc(fs.doc(db, "data", userID as string), us);
+  }
+}
+
 async function getData(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "data", ID as string));
   return doc.data;
 }
-async function getInfo(ID: string) {
+
+async function getUserInfo(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "users", ID as string));
   return doc.data;
 }
