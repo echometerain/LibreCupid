@@ -91,6 +91,7 @@ function isLoggedIn(): boolean {
 async function logout() {
   await fa.signOut(auth);
   token = "";
+  localStorage.removeItem(token);
   user = undefined;
   userID = undefined;
 }
@@ -105,6 +106,8 @@ function gaussianRandom(mean = 0, stdev = 1) {
 }
 
 // get top 10 matches with naive bayes
+// returns an array of [userID, matchAmount]
+// you can then use that id in getUserInfo and getData
 async function top_matches() {
   // get main user info
   let top: (string | number)[][] = [];
@@ -119,6 +122,8 @@ async function top_matches() {
   // for every user
   (await fs.getDocs(q)).forEach((doc) => {
     if (contacts.includes(doc.id)) return; // ignore if already in contacts
+    if (getUserInfo(doc.id)["taken"]) return; // ignore if already taken
+
     const factor = 2; // factor to keep values from exploding
     let acceptGivenAgree = acceptProb * factor; // P(accept | all questions)
     for (let e in Object.keys(data)) {
@@ -172,8 +177,8 @@ async function quizUpdate(question: number, value: boolean) {
   }
 }
 
-// update when swiping
-async function matchUpdate(otherUser: String, didAccept: boolean) {
+// update data when swiping
+async function matchUpdate(otherUser: string, didAccept: boolean) {
   let info = getUserInfo(userID as string);
   let newObj = {};
   newObj["totalSwipes"] = info["totalSwipes"] + 1;
@@ -188,14 +193,21 @@ async function matchUpdate(otherUser: String, didAccept: boolean) {
   }
 }
 
-// get document from data collection given id
+// get json document from data collection given id
 async function getData(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "data", ID as string));
   return doc.data;
 }
 
-// get document from info collection given id
+// get json document from info collection given id
 async function getUserInfo(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "users", ID as string));
   return doc.data;
+}
+
+// set user info
+async function setInfoAttrib(attrib: string, value: number | string | boolean) {
+  let obj = {};
+  obj[userID as string][attrib] = value;
+  await fs.updateDoc(fs.doc(db, "users", userID as string), obj);
 }
