@@ -73,6 +73,17 @@ function sendMessage() {
   }
 }
 
+// Delete message funciton
+function deleteMessage(messageId) {
+  // Check if WebSocket connection is open
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    // Send a delete request to the server with the message ID
+    ws.send(JSON.stringify({ type: 'delete', messageId: messageId }));
+  } else {
+    console.error('WebSocket connection is not open.');
+  }
+}
+
 // Display message function
 function displayMessage(message) {
   const messagesDiv = document.getElementById('messages');
