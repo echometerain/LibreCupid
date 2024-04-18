@@ -1,7 +1,12 @@
 import { initializeApp } from "firebase/app";
 import { getDatabase } from "firebase/database";
-import { getAnalytics } from "firebase/analytics";
-import { getAuth, signInWithCustomToken } from "firebase/auth";
+import {
+  getAuth,
+  signInWithCustomToken,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signOut,
+} from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyD3Oipp7R4-IP4DYxthQkqKMRt_TX2eyrg",
@@ -15,16 +20,37 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
-const data = getAnalytics(app);
+const auth = getAuth(app);
+const data = getDatabase(app);
+var token;
 var user;
 
-function firebase_auth() {
-  const auth = getAuth();
+function auto_login() {
   signInWithCustomToken(auth, token).then((userCredential) => {
     user = userCredential.user;
   });
 }
+
+function firebase_auth() {
+  if (token != "") return;
+  signInWithPopup(auth, new GoogleAuthProvider())
+    .then((result) => {
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      token = credential.accessToken;
+      user = result.user;
+    })
+    .catch((error) => {
+      const errorCode = error.code;
+      const errorMessage = error.message;
+    });
+}
+
+async function logout() {
+  await signOut(auth);
+  token = "";
+  user = null;
+}
+
 function top_matches() {
   var list;
   return list;
