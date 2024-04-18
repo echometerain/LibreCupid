@@ -42,15 +42,63 @@ function firebase_auth() {
     });
 }
 
+function isLoggedIn(): boolean {
+  return user != undefined;
+}
+
 async function logout() {
   await fa.signOut(auth);
   token = "";
   user = undefined;
+  userID = undefined;
 }
 
-function top_matches() {
-  var list;
-  return list;
+// Standard Normal variate using Box-Muller transform.
+function gaussianRandom(mean = 0, stdev = 1) {
+  let u = 1 - Math.random(); //Converting [0,1) to (0,1)
+  let v = Math.random();
+  let z = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+  // Transform to the desired mean and standard deviation:
+  return z * stdev + mean;
+}
+
+async function top_matches() {
+  // get main user info
+  let top: (string | number)[][] = [];
+  let info = await getInfo(userID as string);
+  let contacts = info["contacts"];
+  let acceptProb = info["totalAccepted"] / info["totalSwipes"];
+  let data = await getData(userID as string);
+
+  // get all users
+  let compat: (string | number)[][] = [];
+  let q = fs.query(fs.collection(db, "data"));
+  (await fs.getDocs(q)).forEach((doc) => {
+    if (contacts.includes(doc.id)) return;
+    const factor = 2;
+    let acceptGivenAgree = acceptProb * factor;
+    for (let e in Object.keys(data)) {
+      let agree = data[e]["isYes"] == doc[e]["isYes"];
+      let agreeGivenAccept = data[e]["acceptedAgree"] / info["totalAccepted"];
+      let sd = Math.sqrt(
+        (agreeGivenAccept * (1 - agreeGivenAccept)) / info["totalAccepted"]
+      );
+      let prob = gaussianRandom(agreeGivenAccept, sd);
+      if (agree) {
+        acceptGivenAgree = prob * factor;
+      } else {
+        acceptGivenAgree = (1 - 1 - prob) * factor;
+      }
+    }
+    compat.push([doc.id, acceptGivenAgree]);
+    compat.sort((a, b) => {
+      // sort descending
+      return (b[1] as number) - (a[1] as number);
+    });
+    top = compat.slice(0, Math.min(10, compat.length));
+  });
+
+  return top;
 }
 async function gen_question() {
   var count: number = (
@@ -60,24 +108,24 @@ async function gen_question() {
   return await fs.getDoc(fs.doc(db, "questions", num.toString()));
 }
 
-async function quiz_update(question, value) {
-  let docRef = fs.doc(db, "data/" + userID, question.toString());
+async function quiz_update(question: number, value: boolean) {
+  let docRef = fs.doc(db, "data", userID as string);
   let doc = await fs.getDoc(docRef);
+  let obj = {};
+  obj[question.toString()]["isYes"] = value;
   if (doc.exists()) {
-    fs.updateDoc(docRef, { isYes: value });
+    fs.updateDoc(docRef, obj);
   } else {
-    fs.setDoc(docRef, {
-      acceptedAgree: 0,
-      isYes: value,
-    });
+    obj[question.toString()]["acceptedAgree"] = 0;
+    fs.setDoc(docRef, obj);
   }
 }
 
-function get_stats(otherUserID) {}
-function set_stats(arr) {
-  // [isYes, mean, sd]
+async function getData(ID: string) {
+  let doc = await fs.getDoc(fs.doc(db, "data", ID as string));
+  return doc.data;
 }
-async function getInfo() {
-  let doc = await fs.getDoc(fs.doc(db, "users", userID as string));
-  return doc;
+async function getInfo(ID: string) {
+  let doc = await fs.getDoc(fs.doc(db, "users", ID as string));
+  return doc.data;
 }
