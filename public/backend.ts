@@ -18,14 +18,21 @@ const app = initializeApp(firebaseConfig);
 const auth = fa.getAuth(app);
 const db = fs.getFirestore(app);
 const store = st.getStorage(app);
-var token: string | undefined = undefined;
+var token: string | undefined;
 var user: fa.User | undefined = undefined;
 var userID: string | undefined = undefined;
 
+var storedToken = localStorage.getItem("token");
+if (storedToken != "" && storedToken != null) {
+  token = storedToken;
+  auto_login();
+}
+
+// autologin based on token
 function auto_login() {
-  if (token == undefined) return;
   fa.signInWithCustomToken(auth, token as string).then((userCredential) => {
     user = userCredential.user;
+    userID = user.uid;
   });
 }
 
@@ -43,7 +50,7 @@ async function register(
   obj[userID]["username"] = username;
 
   let imageRef = st.ref(store, userID);
-  let imageUpload = await st.uploadBytesResumable(
+  await st.uploadBytesResumable(
     imageRef,
     await (await fetch(photoPath)).blob()
   );
@@ -52,6 +59,7 @@ async function register(
   });
 }
 
+// logs user in (returns true if registration is needed)
 async function loginIfRegister(): Promise<boolean> {
   await fa
     .signInWithPopup(auth, new fa.GoogleAuthProvider())
@@ -59,6 +67,7 @@ async function loginIfRegister(): Promise<boolean> {
       const credential = fa.GoogleAuthProvider.credentialFromResult(result);
       if (credential == null || credential == undefined) return;
       token = credential.accessToken;
+      localStorage.setItem("token", token as string);
       user = result.user;
       userID = user.uid;
     })
@@ -73,10 +82,12 @@ async function loginIfRegister(): Promise<boolean> {
   return false;
 }
 
+// check if logged in
 function isLoggedIn(): boolean {
   return user != undefined;
 }
 
+// logout
 async function logout() {
   await fa.signOut(auth);
   token = "";
@@ -93,6 +104,7 @@ function gaussianRandom(mean = 0, stdev = 1) {
   return z * stdev + mean;
 }
 
+// get top 10 matches with naive bayes
 async function top_matches() {
   // get main user info
   let top: (string | number)[][] = [];
@@ -146,7 +158,7 @@ async function genQuestion() {
   return await fs.getDoc(fs.doc(db, "questions", num.toString()));
 }
 
-// update user data on question
+// update data after user answers question
 async function quizUpdate(question: number, value: boolean) {
   let docRef = fs.doc(db, "data", userID as string);
   let doc = await fs.getDoc(docRef);
@@ -160,7 +172,7 @@ async function quizUpdate(question: number, value: boolean) {
   }
 }
 
-// update when swiping;
+// update when swiping
 async function matchUpdate(otherUser: String, didAccept: boolean) {
   let info = getUserInfo(userID as string);
   let newObj = {};
@@ -176,11 +188,13 @@ async function matchUpdate(otherUser: String, didAccept: boolean) {
   }
 }
 
+// get document from data collection given id
 async function getData(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "data", ID as string));
   return doc.data;
 }
 
+// get document from info collection given id
 async function getUserInfo(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "users", ID as string));
   return doc.data;
