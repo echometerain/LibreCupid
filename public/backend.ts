@@ -112,7 +112,7 @@ export async function top_matches() {
   // get main user info
   let top: (string | number)[][] = [];
   let info = await getUserInfo(userID as string);
-  let contacts = info["contacts"];
+  let seen = info["seen"];
   let acceptProb = info["totalAccepted"] / info["totalSwipes"];
   let data = await getData(userID as string);
 
@@ -121,7 +121,7 @@ export async function top_matches() {
   let q = fs.query(fs.collection(db, "data")); // get everyone
   // for every user
   (await fs.getDocs(q)).forEach((doc) => {
-    if (contacts.includes(doc.id)) return; // ignore if already in contacts
+    if (seen.includes(doc.id)) return; // ignore if already in contacts
     if (getUserInfo(doc.id)["taken"]) return; // ignore if already taken
 
     const factor = 2; // factor to keep values from exploding
@@ -161,14 +161,14 @@ export async function genQuestion() {
     await fs.getCountFromServer(fs.collection(db, "questions"))
   ).data().count;
   let num = Math.floor(Math.random() * count);
-  let questionInfo = await (
+  let questionInfo = (
     await fs.getDoc(fs.doc(db, "questions", num.toString()))
-  ).data();
-  return [num];
+  ).data() as object;
+  return [num, questionInfo["text"]];
 }
 
 // update data after user answers question
-async function quizUpdate(question: number, value: boolean) {
+export async function quizUpdate(question: number, value: boolean) {
   let docRef = fs.doc(db, "data", userID as string);
   let doc = await fs.getDoc(docRef);
   let obj = {};
@@ -182,39 +182,40 @@ async function quizUpdate(question: number, value: boolean) {
 }
 
 // update data when swiping
-async function matchUpdate(otherUser: string, didAccept: boolean) {
+export async function matchUpdate(otherUser: string, didAccept: boolean) {
   let info = getUserInfo(userID as string);
   let newObj = {};
+  newObj["seen"] = info["seen"].push(otherUser);
   newObj["totalSwipes"] = info["totalSwipes"] + 1;
-  fs.updateDoc(fs.doc(db, "users", userID as string), newObj);
   if (didAccept) {
-    let us = (
-      await fs.getDoc(fs.doc(db, "data", userID as string))
-    ).data() as object;
-    let other = (
-      await fs.getDoc(fs.doc(db, "data", otherUser as string))
-    ).data() as object;
+    newObj["totalAccepted"] = info["totalAccepted"] + 1;
+    let us = getData(userID as string);
+    let other = getData(otherUser as string);
     for (let e in Object.keys(other)) {
       if (other[e]["isYes"] == us[e]["isYes"]) us[e]["acceptedAgree"]++;
     }
     fs.setDoc(fs.doc(db, "data", userID as string), us);
   }
+  fs.updateDoc(fs.doc(db, "users", userID as string), newObj);
 }
 
 // get json document from data collection given id
-async function getData(ID: string) {
+export async function getData(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "data", ID as string));
   return doc.data() as object;
 }
 
 // get json document from info collection given id
-async function getUserInfo(ID: string) {
+export async function getUserInfo(ID: string) {
   let doc = await fs.getDoc(fs.doc(db, "users", ID as string));
   return doc.data() as object;
 }
 
 // set user info
-async function setInfoAttrib(attrib: string, value: number | string | boolean) {
+export async function setInfoAttrib(
+  attrib: string,
+  value: number | string | boolean
+) {
   let obj = {};
   obj[userID as string][attrib] = value;
   await fs.updateDoc(fs.doc(db, "users", userID as string), obj);
