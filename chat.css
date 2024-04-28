@@ -1,0 +1,69 @@
+@import url("bootstrap.css");
+html{
+    height: 105%;
+    width: 105%;
+    border: 0px;
+    overflow: hidden;
+}
+body{
+    height: 100%;
+    border: 0px;
+    background: var(--white);
+}
+div{
+    padding: 0px;
+    margin: 0px;
+}
+#app{
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    height: 100%;
+    width: 100%;
+    border: 0px;
+}
+#sideBar{
+    display: flex;
+    flex-basis: 26vw;
+    flex-direction: column;
+    border-right: 3px double var(--dark);
+}
+#sideBar > p{
+    margin-left: 15px;
+    margin-top: 10px;
+    color: var(--pink);
+    font-size: 15px;
+}
+#sideTopbar{
+    background-image: linear-gradient(to right, var(--pink), var(--orange)) ;
+    flex-basis: 7vh; 
+}
+#sideTopbar > p{
+    margin-left: 15px;
+    margin: 10px;
+    color: var(--white);
+    font-size: 24px;
+}
+#chat{
+    display:flex;
+    flex-basis: 74vw;
+    flex-direction: column;
+}
+#messages{
+    flex-basis: 90vh;
+    background-color: var(--white);
+}
+#messageSender{
+    flex-basis: 10vh;
+    background-color: var(--gray);
+}
+#sender{
+    background: transparent;
+    color: var(--light);
+    height: 100%;
+    width: 100%;
+    border: none;
+    resize: none;
+}
+.friend{}
+.message{}
