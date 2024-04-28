@@ -4,7 +4,8 @@
   "description": "Open source dating app (naive bayes)",
   "main": "backend.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "webpack --mode=development"
   },
   "keywords": [],
   "author": "",
@@ -12,6 +13,9 @@
   "dependencies": {
     "firebase": "^10.11.0",
     "firebase-tools": "^13.7.3",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "webpack": "^5.91.0",
+    "webpack-cli": "^5.1.4"
   }
+  
 }
